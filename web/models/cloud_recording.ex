@@ -61,9 +61,12 @@ defmodule CloudRecording do
     if cloud_recording == nil || cloud_recording.status == "off" || cloud_recording.status == "paused" do
       60_000
     else
-      div(60_000, cloud_recording.frequency)
+      count_sleep(cloud_recording.frequency)
     end
   end
+
+  defp count_sleep(frequency) when frequency in [5, 10], do: 60_000 * frequency
+  defp count_sleep(frequency), do: div(60_000, frequency)
 
   def changeset(model, params \\ :invalid) do
     model
