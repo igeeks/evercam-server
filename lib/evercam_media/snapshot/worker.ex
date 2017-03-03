@@ -198,11 +198,9 @@ defmodule EvercamMedia.Snapshot.Worker do
         {{:error, error}, true} ->
           case Error.parse(error) do
             :device_busy ->
-              IO.inspect "Not retry in case of device_busy"
               ConCache.delete(:camera_lock, camera_exid)
               send worker, {:camera_reply, result, timestamp, reply_to}
             _ ->
-              IO.inspect "Retry snapshot"
               if ConCache.get(:camera_lock, state.config.camera_exid) && attempt == 1 do
                 Process.exit self, :shutdown
               end
