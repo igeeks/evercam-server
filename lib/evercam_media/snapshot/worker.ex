@@ -7,6 +7,7 @@ defmodule EvercamMedia.Snapshot.Worker do
 
   use GenServer
   alias EvercamMedia.Snapshot.CamClient
+  alias EvercamMedia.Snapshot.Error
 
   ################
   ## Client API ##
@@ -194,12 +195,20 @@ defmodule EvercamMedia.Snapshot.Worker do
     spawn fn ->
       result = CamClient.fetch_snapshot(config)
       case {result, camera.is_online} do
-        {{:error, _error}, true} ->
-          if ConCache.get(:camera_lock, state.config.camera_exid) && attempt == 1 do
-            Process.exit self, :shutdown
+        {{:error, error}, true} ->
+          case Error.parse(error) do
+            :device_busy ->
+              IO.inspect "Not retry in case of device_busy"
+              ConCache.delete(:camera_lock, camera_exid)
+              send worker, {:camera_reply, result, timestamp, reply_to}
+            _ ->
+              IO.inspect "Retry snapshot"
+              if ConCache.get(:camera_lock, state.config.camera_exid) && attempt == 1 do
+                Process.exit self, :shutdown
+              end
+              ConCache.put(:camera_lock, camera_exid, camera_exid)
+              try_snapshot(state, config, camera_exid, timestamp, reply_to, worker, attempt + 1)
           end
-          ConCache.put(:camera_lock, camera_exid, camera_exid)
-          try_snapshot(state, config, camera_exid, timestamp, reply_to, worker, attempt + 1)
         _ ->
           ConCache.delete(:camera_lock, camera_exid)
           send worker, {:camera_reply, result, timestamp, reply_to}
